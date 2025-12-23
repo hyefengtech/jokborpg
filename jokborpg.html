@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>가문 RPG – 시조의 기록</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-zinc-900 text-zinc-100 min-h-screen flex flex-col">
+  <!-- Header -->
+  <header class="bg-zinc-950 border-b border-zinc-800">
+    <div class="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <h1 class="text-xl font-bold text-amber-300 truncate">📜 가문 RPG – 시조의 기록</h1>
+        <p class="text-xs text-zinc-400">텍스트 기반 가문 로그라이크</p>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <button id="btnNew" class="text-sm border border-zinc-700 px-3 py-1.5 rounded hover:bg-zinc-800">새 가문</button>
+        <button id="btnShareGenealogy" class="text-sm border border-amber-400 text-amber-300 px-3 py-1.5 rounded hover:bg-amber-300 hover:text-zinc-900">족보 공유</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="flex-1">
+    <div id="app" class="max-w-3xl mx-auto px-4 py-6"></div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-zinc-950 border-t border-zinc-800">
+    <div class="max-w-3xl mx-auto px-4 py-4 text-xs text-zinc-400 flex flex-col gap-1">
+      <div>데이터는 브라우저(로컬스토리지)에만 저장됩니다.</div>
+      <div class="text-zinc-500">Tip: 3대마다 요약 카드가 뜨고, PNG로 저장할 수 있어요.</div>
+    </div>
+  </footer>
+
+<script>
+/* =========================
+   사건 카드: 진짜 70개 (각기 다름)
+   risk: 0~2
+========================= */
+const events = [
+  { text:"과거 시험을 볼 기회가 찾아왔다.", risk:1, choices:[
+    {text:"응시한다", outcome:"낙방했으나 이름이 퍼졌다.", riskDelta:1},
+    {text:"포기한다", outcome:"조용히 실력을 쌓았다.", riskDelta:-1}
+  ]},
+  { text:"유력 가문에서 혼인 제안이 들어왔다.", risk:0, choices:[
+    {text:"정략혼을 택한다", outcome:"가문 체면이 올랐다.", riskDelta:0},
+    {text:"거절하고 자율혼을 고집", outcome:"소문은 났지만 마음은 편했다.", riskDelta:-1}
+  ]},
+  { text:"왕명이 내려왔다. 논란의 정책에 서명하라 한다.", risk:2, choices:[
+    {text:"서명한다", outcome:"출세했지만 원한이 남았다.", riskDelta:2},
+    {text:"거부한다", outcome:"명분을 지켰으나 위험이 커졌다.", riskDelta:1}
+  ]},
+  { text:"지방 수령 자리가 공석이 되었다.", risk:1, choices:[
+    {text:"청탁을 넣는다", outcome:"자리는 얻었지만 뒷말이 돌았다.", riskDelta:2},
+    {text:"정공법으로 기다린다", outcome:"늦었지만 평판을 지켰다.", riskDelta:-1}
+  ]},
+  { text:"백성들이 세금 문제로 소란을 일으켰다.", risk:1, choices:[
+    {text:"강경 진압", outcome:"질서는 회복됐지만 원성이 쌓였다.", riskDelta:2},
+    {text:"타협과 구휼", outcome:"신망을 얻었으나 상부 눈총.", riskDelta:1}
+  ]},
+  { text:"역모 혐의로 지인이 잡혀갔다.", risk:2, choices:[
+    {text:"연을 끊는다", outcome:"의심을 피했다.", riskDelta:0},
+    {text:"구명에 나선다", outcome:"의리는 지켰으나 위험해졌다.", riskDelta:2}
+  ]},
+  { text:"가문 재산을 불릴 기회가 생겼다.", risk:1, choices:[
+    {text:"과감히 투자", outcome:"재산이 늘었다.", riskDelta:1},
+    {text:"보수적으로 운용", outcome:"안정은 지켰다.", riskDelta:-1}
+  ]},
+  { text:"왕실 행사에 초대받았다.", risk:1, choices:[
+    {text:"화려하게 참석", outcome:"눈에 띄었지만 시기도 샀다.", riskDelta:1},
+    {text:"조용히 참석", outcome:"무난히 넘어갔다.", riskDelta:0}
+  ]},
+  { text:"상소를 올릴 기회가 생겼다.", risk:2, choices:[
+    {text:"직언한다", outcome:"명성이 올랐지만 위험도 상승.", riskDelta:2},
+    {text:"침묵한다", outcome:"안전했으나 기회를 놓쳤다.", riskDelta:0}
+  ]},
+  { text:"학문에 몰두할 시간이 생겼다.", risk:0, choices:[
+    {text:"학문에 전념", outcome:"후대에 이름을 남겼다.", riskDelta:-1},
+    {text:"실무로 성과", outcome:"당장 공적을 쌓았다.", riskDelta:0}
+  ]},
+  { text:"정적이 공개적으로 모함했다.", risk:2, choices:[
+    {text:"맞대응", outcome:"싸움이 커졌다.", riskDelta:2},
+    {text:"참고 증거를 모은다", outcome:"시간은 걸렸지만 판이 작아졌다.", riskDelta:1}
+  ]},
+  { text:"가문 후원을 요청받았다.", risk:1, choices:[
+    {text:"후원한다", outcome:"인맥이 늘었다.", riskDelta:1},
+    {text:"거절한다", outcome:"관계는 얕아졌지만 안전했다.", riskDelta:0}
+  ]},
+  { text:"유능한 인재가 가문 문하에 들고자 한다.", risk:0, choices:[
+    {text:"받아들인다", outcome:"가문 역량이 강화됐다.", riskDelta:0},
+    {text:"경계하며 거절", outcome:"안정은 유지됐으나 기회 손실.", riskDelta:-1}
+  ]},
+  { text:"전염병 소문이 돌기 시작했다.", risk:1, choices:[
+    {text:"피신한다", outcome:"무사했지만 공백이 생겼다.", riskDelta:0},
+    {text:"남아 구휼한다", outcome:"책임은 다했으나 위험해졌다.", riskDelta:1}
+  ]},
+  { text:"비밀 문서를 우연히 손에 넣었다.", risk:2, choices:[
+    {text:"활용한다", outcome:"권력을 얻었지만 표적이 됐다.", riskDelta:2},
+    {text:"파기한다", outcome:"양심을 지켰고 위험이 줄었다.", riskDelta:-1}
+  ]},
+  { text:"후계자 교육 방침을 정해야 한다.", risk:0, choices:[
+    {text:"엄격하게", outcome:"강인한 후손이 자랐다.", riskDelta:1},
+    {text:"자유롭게", outcome:"유연한 가문이 되었다.", riskDelta:-1}
+  ]},
+  { text:"지방 민원이 직접 상경해 왔다.", risk:1, choices:[
+    {text:"직접 해결", outcome:"신뢰를 얻었다.", riskDelta:0},
+    {text:"부하에게 위임", outcome:"효율은 올랐으나 불씨가 남았다.", riskDelta:1}
+  ]},
+  { text:"외국 사신이 비밀 접촉을 제안했다.", risk:2, choices:[
+    {text:"응한다", outcome:"새 가능성이 열렸으나 위험도 상승.", riskDelta:2},
+    {text:"거절한다", outcome:"안전했다.", riskDelta:0}
+  ]},
+  { text:"가문 내부 분쟁이 격화됐다.", risk:1, choices:[
+    {text:"강하게 중재", outcome:"질서는 잡혔다.", riskDelta:1},
+    {text:"시간을 두고 봉합", outcome:"당장은 조용해졌지만 찜찜함.", riskDelta:1}
+  ]},
+  { text:"은퇴를 권유받았다.", risk:0, choices:[
+    {text:"은퇴한다", outcome:"조용한 말년을 보냈다.", riskDelta:-2},
+    {text:"거부한다", outcome:"끝까지 자리를 지켰다.", riskDelta:1}
+  ]},
+  { text:"사헌부의 감찰이 예고되었다.", risk:2, choices:[
+    {text:"장부를 정리한다", outcome:"허점이 줄었다.", riskDelta:1},
+    {text:"인맥으로 무마", outcome:"당장은 넘어갔으나 꼬리가 길어졌다.", riskDelta:2}
+  ]},
+  { text:"곡식 창고에서 분실이 발생했다.", risk:1, choices:[
+    {text:"엄벌한다", outcome:"질서는 섰지만 원망이 남았다.", riskDelta:1},
+    {text:"손실을 메우고 개혁", outcome:"민심이 누그러졌다.", riskDelta:0}
+  ]},
+  { text:"서원의 논쟁에 끼어들 기회가 생겼다.", risk:1, choices:[
+    {text:"편을 든다", outcome:"지지층이 생겼지만 적도 생겼다.", riskDelta:1},
+    {text:"중재한다", outcome:"큰 분란은 막았다.", riskDelta:0}
+  ]},
+  { text:"가문 제사 문제로 친족이 들고일어났다.", risk:0, choices:[
+    {text:"전통대로", outcome:"체면은 지켰다.", riskDelta:0},
+    {text:"현실적으로 조정", outcome:"분란은 났지만 부담이 줄었다.", riskDelta:0}
+  ]},
+  { text:"군역 면제 청탁이 들어왔다.", risk:2, choices:[
+    {text:"받아준다", outcome:"돈은 들어왔으나 위험해졌다.", riskDelta:2},
+    {text:"거절한다", outcome:"원칙을 지켰다.", riskDelta:0}
+  ]},
+  { text:"뇌물 의혹이 퍼졌다.", risk:2, choices:[
+    {text:"고소로 맞선다", outcome:"싸움이 커졌다.", riskDelta:2},
+    {text:"겸손히 수습", outcome:"불길이 조금 잦아들었다.", riskDelta:1}
+  ]},
+  { text:"유배지에서 편지가 왔다. 위험한 부탁이 담겼다.", risk:2, choices:[
+    {text:"돕는다", outcome:"의리를 지켰으나 표적이 됐다.", riskDelta:2},
+    {text:"외면한다", outcome:"안전했지만 죄책감이 남았다.", riskDelta:0}
+  ]},
+  { text:"도적떼가 들끓는다.", risk:1, choices:[
+    {text:"군을 동원", outcome:"성과는 있었으나 원한이 남았다.", riskDelta:1},
+    {text:"회유와 포상", outcome:"피는 덜 봤지만 비용이 들었다.", riskDelta:1}
+  ]},
+  { text:"가문 문장을 새로 만들자는 제안이 나왔다.", risk:0, choices:[
+    {text:"채택한다", outcome:"정체성이 강화됐다.", riskDelta:0},
+    {text:"거절한다", outcome:"전통을 지켰다.", riskDelta:0}
+  ]},
+  { text:"서고에서 금서로 분류된 책을 발견했다.", risk:2, choices:[
+    {text:"읽고 활용", outcome:"시야가 넓어졌지만 위험해졌다.", riskDelta:2},
+    {text:"덮고 신고", outcome:"신임을 얻었지만 원망도 샀다.", riskDelta:1}
+  ]},
+  { text:"비가 잦아 수해가 예상된다.", risk:1, choices:[
+    {text:"미리 치수 공사", outcome:"피해를 줄였다.", riskDelta:0},
+    {text:"예산을 아낀다", outcome:"당장은 편했지만 후폭풍.", riskDelta:1}
+  ]},
+  { text:"시장 상인들이 단합해 요구서를 냈다.", risk:1, choices:[
+    {text:"규제 강화", outcome:"통제는 됐지만 반발이 커졌다.", riskDelta:1},
+    {text:"협상한다", outcome:"타협점을 찾았다.", riskDelta:0}
+  ]},
+  { text:"관청 기록이 불타 버렸다.", risk:1, choices:[
+    {text:"철저히 재정리", outcome:"혼란을 수습했다.", riskDelta:0},
+    {text:"적당히 메운다", outcome:"당장은 넘어갔지만 구멍이 남았다.", riskDelta:1}
+  ]},
+  { text:"부패한 아전이 발각되었다.", risk:1, choices:[
+    {text:"엄벌", outcome:"기강은 섰다.", riskDelta:1},
+    {text:"회초리+개혁", outcome:"반발은 줄고 변화는 남았다.", riskDelta:0}
+  ]},
+  { text:"신임 관리가 부임했다. 성격이 까다롭다.", risk:0, choices:[
+    {text:"먼저 예를 갖춘다", outcome:"관계가 부드러워졌다.", riskDelta:0},
+    {text:"거리 둔다", outcome:"충돌은 없었지만 기회도 없다.", riskDelta:0}
+  ]},
+  { text:"가문 재산을 둘러싼 소송이 걸렸다.", risk:2, choices:[
+    {text:"끝까지 싸운다", outcome:"이겼지만 적이 생겼다.", riskDelta:2},
+    {text:"합의한다", outcome:"손해는 봤으나 평화롭다.", riskDelta:0}
+  ]},
+  { text:"진상품이 망가진 채 도착했다.", risk:1, choices:[
+    {text:"책임자를 문책", outcome:"관청이 긴장했다.", riskDelta:1},
+    {text:"침착히 재조달", outcome:"무난히 넘어갔다.", riskDelta:0}
+  ]},
+  { text:"장터에서 유언비어가 퍼지고 있다.", risk:1, choices:[
+    {text:"엄금한다", outcome:"잠잠해졌으나 반감이 남았다.", riskDelta:1},
+    {text:"사실로 대응", outcome:"신뢰를 얻었다.", riskDelta:0}
+  ]},
+  { text:"상단(商團)이 투자 제안을 했다.", risk:1, choices:[
+    {text:"받는다", outcome:"돈줄이 생겼다.", riskDelta:1},
+    {text:"거절한다", outcome:"기대는 줄었지만 안전했다.", riskDelta:0}
+  ]},
+  { text:"젊은 친족이 방탕해 소문이 났다.", risk:0, choices:[
+    {text:"엄히 다스린다", outcome:"가문 체면을 지켰다.", riskDelta:0},
+    {text:"유하게 돌본다", outcome:"관계는 좋아졌으나 소문은 남았다.", riskDelta:0}
+  ]},
+  { text:"관아 앞에 진정서가 산처럼 쌓였다.", risk:1, choices:[
+    {text:"직접 처리", outcome:"평판이 올랐다.", riskDelta:0},
+    {text:"절차로 밀어넣기", outcome:"효율은 올랐으나 원성이 쌓였다.", riskDelta:1}
+  ]},
+  { text:"비가 그치고 흉년이 예고된다.", risk:1, choices:[
+    {text:"비축미를 풀어 구휼", outcome:"민심을 얻었다.", riskDelta:0},
+    {text:"창고를 지킨다", outcome:"가문은 안전했으나 원망이 남았다.", riskDelta:1}
+  ]},
+  { text:"문하생들이 늘어나기 시작했다.", risk:0, choices:[
+    {text:"적극 수용", outcome:"세력이 커졌다.", riskDelta:1},
+    {text:"선별 수용", outcome:"질을 지켰다.", riskDelta:0}
+  ]},
+  { text:"서찰 한 장: '오늘 밤 누군가 널 노린다.'", risk:2, choices:[
+    {text:"경호를 강화", outcome:"큰일은 막았다.", riskDelta:1},
+    {text:"역으로 함정을 판다", outcome:"성공했지만 위험해졌다.", riskDelta:2}
+  ]},
+  { text:"동료가 비밀을 털어놓았다. 듣기만 해도 위험하다.", risk:2, choices:[
+    {text:"침묵을 약속", outcome:"연은 깊어졌으나 위험도 상승.", riskDelta:2},
+    {text:"거리 둔다", outcome:"안전은 지켰다.", riskDelta:0}
+  ]},
+  { text:"도시에 큰 화재가 났다.", risk:1, choices:[
+    {text:"구호에 나선다", outcome:"민심이 올랐다.", riskDelta:0},
+    {text:"재산을 지킨다", outcome:"가문은 안전했으나 이미지 손상.", riskDelta:1}
+  ]},
+  { text:"새로 온 감사가 '장부를 보자' 한다.", risk:2, choices:[
+    {text:"정면 돌파", outcome:"위기는 넘겼다.", riskDelta:1},
+    {text:"접대와 로비", outcome:"빠르지만 위험은 커졌다.", riskDelta:2}
+  ]},
+  { text:"사냥 모임에 초대받았다. 거절하면 무례다.", risk:1, choices:[
+    {text:"참석한다", outcome:"관계가 넓어졌다.", riskDelta:1},
+    {text:"병을 핑계로 빠진다", outcome:"무난했지만 거리감이 생겼다.", riskDelta:0}
+  ]},
+  { text:"밤길에 수상한 자가 따라온다.", risk:2, choices:[
+    {text:"도망친다", outcome:"살아남았지만 체면 손상.", riskDelta:1},
+    {text:"정면대응", outcome:"이겼지만 부상과 원한.", riskDelta:2}
+  ]},
+  { text:"가문 종손 자리를 둘러싼 소문이 돈다.", risk:1, choices:[
+    {text:"공식적으로 정리", outcome:"분쟁이 잦아들었다.", riskDelta:0},
+    {text:"모른 척", outcome:"불씨가 남았다.", riskDelta:1}
+  ]},
+  { text:"서로 다른 파벌이 당신에게 선택을 강요한다.", risk:2, choices:[
+    {text:"한쪽에 선다", outcome:"힘을 얻었지만 적도 얻었다.", riskDelta:2},
+    {text:"중립을 고집", outcome:"안전했으나 고립감.", riskDelta:1}
+  ]},
+  { text:"궁궐 소식통이 '기회가 있다'고 귀띔한다.", risk:2, choices:[
+    {text:"파고든다", outcome:"출세의 문이 열렸다.", riskDelta:2},
+    {text:"거리를 둔다", outcome:"조용히 살 길을 택했다.", riskDelta:0}
+  ]},
+  { text:"무과 인재를 추천해 달라는 요청이 왔다.", risk:1, choices:[
+    {text:"실력자 추천", outcome:"신뢰를 얻었다.", riskDelta:0},
+    {text:"측근 추천", outcome:"세력은 늘었지만 뒷말.", riskDelta:1}
+  ]},
+  { text:"비밀스러운 정보상이 접근했다.", risk:2, choices:[
+    {text:"거래한다", outcome:"정보를 손에 넣었다.", riskDelta:2},
+    {text:"쫓아낸다", outcome:"위험을 피했다.", riskDelta:0}
+  ]},
+  { text:"유력 인사가 술자리를 제안한다.", risk:1, choices:[
+    {text:"받아준다", outcome:"관계가 깊어졌다.", riskDelta:1},
+    {text:"정중히 거절", outcome:"안전했지만 거리감.", riskDelta:0}
+  ]},
+  { text:"가문 제자 중 한 명이 큰 실수를 저질렀다.", risk:1, choices:[
+    {text:"감싸준다", outcome:"충성은 얻었지만 소문이 났다.", riskDelta:1},
+    {text:"선 긋는다", outcome:"이미지는 지켰다.", riskDelta:0}
+  ]},
+  { text:"공납(세금 물품)이 부족해질 조짐이다.", risk:1, choices:[
+    {text:"추가 징수", outcome:"재정은 채웠으나 원성이 쌓였다.", riskDelta:1},
+    {text:"지출을 줄인다", outcome:"불편은 있었지만 폭발은 막았다.", riskDelta:0}
+  ]},
+  { text:"관청에서 당신을 희생양으로 삼으려 한다.", risk:2, choices:[
+    {text:"증거로 반격", outcome:"상대를 꺾었지만 판이 커졌다.", riskDelta:2},
+    {text:"일단 물러남", outcome:"상처는 남았지만 살아남았다.", riskDelta:1}
+  ]},
+  { text:"가문 장손이 외지로 나가고 싶어 한다.", risk:0, choices:[
+    {text:"보낸다", outcome:"시야가 넓어졌다.", riskDelta:0},
+    {text:"붙잡는다", outcome:"안정은 지켰다.", riskDelta:0}
+  ]},
+  { text:"장마가 길어 다리 공사가 필요하다.", risk:0, choices:[
+    {text:"공사 추진", outcome:"평판이 좋아졌다.", riskDelta:0},
+    {text:"미룬다", outcome:"당장은 편하지만 불만이 남았다.", riskDelta:1}
+  ]},
+  { text:"헌병이 밤마다 순찰을 강화해 달라 한다.", risk:1, choices:[
+    {text:"강화한다", outcome:"치안은 좋아졌으나 불편이 커졌다.", riskDelta:1},
+    {text:"현 수준 유지", outcome:"무난했지만 불안은 남았다.", riskDelta:0}
+  ]},
+  { text:"누군가 '서찰 위조'로 당신을 엮으려 한다.", risk:2, choices:[
+    {text:"선제적으로 폭로", outcome:"상대가 주춤했다.", riskDelta:2},
+    {text:"조용히 증거 수집", outcome:"판을 줄였지만 늦었다.", riskDelta:1}
+  ]},
+  { text:"후원자가 큰 자리를 제안한다.", risk:2, choices:[
+    {text:"받는다", outcome:"권력이 커졌지만 위험도 상승.", riskDelta:2},
+    {text:"사양한다", outcome:"안전했지만 후회가 남는다.", riskDelta:0}
+  ]},
+  { text:"가문의 이름을 바꿀 기회가 왔다.", risk:0, choices:[
+    {text:"개명한다", outcome:"새 출발을 선언했다.", riskDelta:-1},
+    {text:"유지한다", outcome:"전통을 지켰다.", riskDelta:0}
+  ]},
+  { text:"장터에 외지 상인이 들어와 질서를 흐린다.", risk:1, choices:[
+    {text:"추방한다", outcome:"통제는 됐지만 원망이 남았다.", riskDelta:1},
+    {text:"규칙을 만들고 허용", outcome:"질서와 이익을 함께 얻었다.", riskDelta:0}
+  ]},
+  { text:"서쪽 변방에서 긴급 보고가 올라왔다.", risk:2, choices:[
+    {text:"즉시 파견", outcome:"성과는 있었으나 위험해졌다.", riskDelta:2},
+    {text:"상부 지시를 기다림", outcome:"안전했지만 공이 줄었다.", riskDelta:1}
+  ]},
+  { text:"가문 내 문서 정리 중 숨겨진 빚이 나왔다.", risk:1, choices:[
+    {text:"빚을 갚는다", outcome:"체면을 지켰다.", riskDelta:0},
+    {text:"숨긴다", outcome:"당장은 편했지만 위험이 남았다.", riskDelta:2}
+  ]},
+  { text:"사람들이 당신을 '청렴'이라 부른다. 부담스럽다.", risk:0, choices:[
+    {text:"더 엄격해진다", outcome:"명성은 올랐지만 피곤하다.", riskDelta:0},
+    {text:"적당히 유연해진다", outcome:"살기 편해졌지만 실수 여지.", riskDelta:1}
+  ]},
+  { text:"한양에서 시국이 요동친다는 소문이 돈다.", risk:2, choices:[
+    {text:"상경해 판을 본다", outcome:"정보를 얻었지만 위험해졌다.", riskDelta:2},
+    {text:"지방에서 버틴다", outcome:"조용히 넘어갔다.", riskDelta:1}
+  ]},
+  { text:"가문 서고에 새로운 족보 편찬 제안이 왔다.", risk:0, choices:[
+    {text:"편찬한다", outcome:"정체성이 단단해졌다.", riskDelta:0},
+    {text:"미룬다", outcome:"바빴지만 허전하다.", riskDelta:0}
+  ]},
+  { text:"세곡 운송 중 배가 뒤집혔다.", risk:2, choices:[
+    {text:"책임을 진다", outcome:"신뢰는 얻었지만 위험해졌다.", riskDelta:2},
+    {text:"자연재해로 돌린다", outcome:"넘어갔지만 뒷말이 남았다.", riskDelta:1}
+  ]},
+  { text:"가문이 커지며 하인들 사이에 분란이 났다.", risk:1, choices:[
+    {text:"규율을 세운다", outcome:"질서는 잡혔다.", riskDelta:1},
+    {text:"복지를 늘린다", outcome:"충성은 늘었지만 비용 증가.", riskDelta:1}
+  ]},
+  { text:"마지막으로, 선택의 순간이다. 당신의 길을 정하라.", risk:1, choices:[
+    {text:"권력을 좇는다", outcome:"빛과 그림자가 함께 왔다.", riskDelta:2},
+    {text:"조용히 지킨다", outcome:"명맥은 이어졌다.", riskDelta:-1}
+  ]}
+];
+
+// 이벤트가 정확히 70개인지 안전 체크
+if (events.length !== 70) {
+  console.warn("events length:", events.length);
+}
+
+/* =========================
+   상태/저장
+========================= */
+let state = JSON.parse(localStorage.getItem("familyRPG")) || null;
+const app = document.getElementById("app");
+
+function save(){ localStorage.setItem("familyRPG", JSON.stringify(state)); }
+
+document.getElementById("btnNew").addEventListener("click", resetGame);
+document.getElementById("btnShareGenealogy").addEventListener("click", shareGenealogy);
+
+function resetGame(){
+  if(confirm("정말 새 가문을 시작할까? (현재 기록은 사라짐)")){
+    localStorage.removeItem("familyRPG");
+    state = null;
+    renderStart();
+  }
+}
+
+/* =========================
+   시작 UI
+========================= */
+function renderStart(){
+  app.innerHTML =
+    "<div class='bg-zinc-800 border border-zinc-700 rounded-xl p-6'>" +
+      "<h2 class='text-lg font-bold text-amber-300 mb-4'>시조 기록</h2>" +
+      "<label class='text-sm text-zinc-300'>시조 이름</label>" +
+      "<input id='founder' class='w-full mt-1 mb-3 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400' placeholder='이름' />" +
+      "<label class='text-sm text-zinc-300'>가문 이름</label>" +
+      "<input id='family' class='w-full mt-1 mb-3 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400' placeholder='가문' />" +
+      "<label class='text-sm text-zinc-300'>가훈</label>" +
+      "<input id='motto' class='w-full mt-1 mb-4 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400' placeholder='가훈 한 줄 (선택)' />" +
+      "<button id='btnStart' class='border border-amber-400 text-amber-300 px-4 py-2 rounded-lg hover:bg-amber-300 hover:text-zinc-900'>시작</button>" +
+    "</div>";
+
+  document.getElementById("btnStart").addEventListener("click", startGame);
+}
+
+function startGame(){
+  const f = (document.getElementById("founder").value || "").trim();
+  const fam = (document.getElementById("family").value || "").trim();
+  const m = (document.getElementById("motto").value || "").trim();
+  if(!f || !fam) return alert("이름과 가문은 필수!");
+
+  state = {
+    family: fam,
+    motto: m || "살아남는다",
+    generation: 1,
+    age: 20,
+    risk: 0,
+    current: f,
+    genealogy: []
+  };
+  save();
+  renderDashboard();
+}
+
+/* =========================
+   사망 확률
+========================= */
+function deathChance(){
+  let base = 0;
+  if (state.age >= 70) base = 0.50;
+  else if (state.age >= 60) base = 0.30;
+  else if (state.age >= 50) base = 0.15;
+  else if (state.age >= 40) base = 0.05;
+
+  const riskBonus = state.risk * 0.03;
+  const p = Math.min(0.95, base + riskBonus);
+  return Math.random() < p;
+}
+
+/* =========================
+   진행/선택
+========================= */
+let currentEventIndex = -1;
+
+function nextEvent(){
+  currentEventIndex = Math.floor(Math.random() * events.length);
+  const e = events[currentEventIndex];
+
+  let html =
+    "<div class='bg-zinc-800 border border-zinc-700 rounded-xl p-6'>" +
+      "<div class='flex items-start justify-between gap-3 mb-3'>" +
+        "<div class='min-w-0'>" +
+          "<h2 class='text-lg font-bold text-amber-300 truncate'>" + escapeHtml(state.current) + " (" + state.generation + "대)</h2>" +
+          "<p class='text-sm text-zinc-400'>나이 " + state.age + " · 위험도 " + state.risk + "</p>" +
+        "</div>" +
+        "<span class='text-xs px-2 py-1 rounded bg-zinc-900 border border-zinc-700 text-zinc-300'>위험 +" + e.risk + "</span>" +
+      "</div>" +
+      "<p class='mb-5'>" + escapeHtml(e.text) + "</p>";
+
+  for (let i=0;i<e.choices.length;i++){
+    html +=
+      "<button class='w-full text-left border border-zinc-600 px-4 py-3 rounded-lg hover:bg-zinc-700 mb-2' onclick='choose(" + i + ")'>" +
+        "<div class='font-medium'>" + escapeHtml(e.choices[i].text) + "</div>" +
+        "<div class='text-xs text-zinc-400 mt-1'>결과는 기록되고, 시간이 흐릅니다</div>" +
+      "</button>";
+  }
+
+  html += "</div>";
+  app.innerHTML = html;
+}
+
+function choose(choiceIndex){
+  const e = events[currentEventIndex];
+  const c = e.choices[choiceIndex];
+
+  state.genealogy.push({
+    generation: state.generation,
+    name: state.current,
+    event: e.text,
+    choice: c.text,
+    outcome: c.outcome
+  });
+
+  state.age += 5;
+  state.risk = Math.max(0, state.risk + e.risk + c.riskDelta);
+
+  if (deathChance()) {
+    renderDeath();
+  } else {
+    save();
+    renderDashboard();
+  }
+}
+
+/* =========================
+   사망 / 계승 / 요약
+========================= */
+function renderDeath(){
+  const showSummary = (state.generation % 3 === 0);
+
+  let html =
+    "<div class='bg-black border border-red-700 rounded-xl p-6'>" +
+      "<h2 class='text-lg font-bold text-red-400 mb-2'>☠ 사망</h2>" +
+      "<p class='mb-4'>" + escapeHtml(state.current) + "는 " + state.age + "세에 생을 마감했다.</p>" +
+      "<p class='text-sm text-zinc-400 mb-4'>“그는 다음 선택을 보지 못했다.”</p>";
+
+  if (showSummary) {
+    html += renderEndingSummaryBlock();
+  }
+
+  html +=
+      "<div class='bg-zinc-900 border border-zinc-800 rounded-lg p-4'>" +
+        "<label class='text-sm text-zinc-300'>후손 이름</label>" +
+        "<input id='heirName' class='w-full mt-1 mb-3 px-3 py-2 bg-zinc-950 border border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400' placeholder='후손 이름' />" +
+        "<label class='text-sm text-zinc-300'>가문 (매번 수정 가능)</label>" +
+        "<input id='heirFamily' class='w-full mt-1 mb-3 px-3 py-2 bg-zinc-950 border border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400' value='" + escapeAttr(state.family) + "' />" +
+        "<label class='text-sm text-zinc-300'>가훈 (매번 수정 가능)</label>" +
+        "<input id='heirMotto' class='w-full mt-1 mb-4 px-3 py-2 bg-zinc-950 border border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400' value='" + escapeAttr(state.motto) + "' />" +
+        "<button id='btnHeir' class='border border-amber-400 text-amber-300 px-4 py-2 rounded-lg hover:bg-amber-300 hover:text-zinc-900'>후손의 삶을 시작한다</button>" +
+      "</div>" +
+    "</div>";
+
+  app.innerHTML = html;
+
+  document.getElementById("btnHeir").addEventListener("click", startHeir);
+  const heirInput = document.getElementById("heirName");
+  heirInput.focus();
+  heirInput.addEventListener("keydown", function(ev){
+    if(ev.key === "Enter") startHeir();
+  });
+}
+
+function startHeir(){
+  const heir = (document.getElementById("heirName").value || "").trim();
+  const fam = (document.getElementById("heirFamily").value || "").trim();
+  const mot = (document.getElementById("heirMotto").value || "").trim();
+  if(!heir || !fam) return alert("후손 이름과 가문은 필수!");
+
+  state.current = heir;
+  state.family = fam;
+  state.motto = mot || state.motto;
+  state.generation += 1;
+  state.age = 20;
+  state.risk = Math.floor(state.risk / 2);
+
+  save();
+  renderDashboard();
+}
+
+function renderEndingSummaryBlock(){
+  const summary = computeSummary();
+  // 요약 텍스트는 PNG에도 그대로 쓰임
+  let html =
+    "<div class='bg-zinc-900 border border-amber-500 rounded-xl p-4 mb-4'>" +
+      "<div class='flex items-start justify-between gap-3'>" +
+        "<div>" +
+          "<h3 class='text-amber-300 font-bold'>📜 가문 요약 (" + state.generation + "대)</h3>" +
+          "<p class='text-sm text-zinc-300 mt-1'>" + escapeHtml(summary.line1) + "</p>" +
+          "<p class='text-sm text-zinc-300'>" + escapeHtml(summary.line2) + "</p>" +
+        "</div>" +
+        "<span class='text-xs px-2 py-1 rounded bg-zinc-950 border border-zinc-700 text-zinc-300'>" + escapeHtml(summary.type) + "</span>" +
+      "</div>" +
+      "<div class='mt-3 flex flex-wrap gap-2'>" +
+        "<button id='btnSummaryShare' class='text-sm border border-zinc-600 px-3 py-1.5 rounded hover:bg-zinc-800'>📤 요약 텍스트</button>" +
+        "<button id='btnSummaryPng' class='text-sm border border-amber-400 text-amber-300 px-3 py-1.5 rounded hover:bg-amber-300 hover:text-zinc-900'>🖼 PNG 생성</button>" +
+      "</div>" +
+      "<p class='text-xs text-zinc-500 mt-2'>PNG는 자동 생성 후 다운로드 링크가 뜹니다.</p>" +
+      "<div id='pngOut' class='mt-3'></div>" +
+    "</div>";
+
+  // 이벤트 바인딩은 렌더 후에 붙임(사망 화면에서만)
+  setTimeout(function(){
+    const btnShare = document.getElementById("btnSummaryShare");
+    const btnPng = document.getElementById("btnSummaryPng");
+    if(btnShare) btnShare.addEventListener("click", shareEndingText);
+    if(btnPng) btnPng.addEventListener("click", generateEndingPng);
+  }, 0);
+
+  return html;
+}
+
+function computeSummary(){
+  // 아주 단순한 성향 판정(나중에 더 고급화 가능)
+  const avgRisk = state.genealogy.length ? Math.round(state.risk / Math.max(1, state.generation)) : 0;
+  let type = "균형형 가문";
+  if (state.risk >= 12) type = "권모술수형 가문";
+  else if (state.risk <= 2) type = "생존 최적화형 가문";
+  else if (avgRisk >= 4) type = "불꽃진압형 가문";
+  else if (avgRisk <= 1) type = "은둔수양형 가문";
+
+  const line1 = state.family + " 가문은 " + state.generation + "대에 걸쳐 역사를 이어왔다.";
+  const line2 = "가훈: \"" + state.motto + "\" · 현재 위험도 " + state.risk;
+  return { type, line1, line2 };
+}
+
+function shareEndingText(){
+  const s = computeSummary();
+  const text = "📜 가문 요약\n" +
+    "가문: " + state.family + "\n" +
+    "세대: " + state.generation + "대\n" +
+    "가훈: " + state.motto + "\n" +
+    "성향: " + s.type + "\n" +
+    s.line1 + "\n" + s.line2;
+
+  if (navigator.share) navigator.share({ title:"가문 요약", text:text });
+  else fallbackCopy(text);
+}
+
+/* =========================
+   PNG 이미지 생성 (Canvas)
+========================= */
+function generateEndingPng(){
+  const s = computeSummary();
+
+  const W = 900, H = 500;
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  // 배경
+  ctx.fillStyle = "#0f0f10";
+  ctx.fillRect(0,0,W,H);
+
+  // 카드
+  const pad = 40;
+  ctx.fillStyle = "#18181b";
+  roundRect(ctx, pad, pad, W-pad*2, H-pad*2, 24, true, false);
+
+  // 좌측 골드 바
+  ctx.fillStyle = "#fbbf24";
+  roundRect(ctx, pad, pad, 10, H-pad*2, 10, true, false);
+
+  // 제목
+  ctx.fillStyle = "#fbbf24";
+  ctx.font = "bold 34px system-ui, -apple-system, sans-serif";
+  ctx.fillText("가문 RPG · 요약", pad + 28, pad + 70);
+
+  // 본문
+  ctx.fillStyle = "#e4e4e7";
+  ctx.font = "28px system-ui, -apple-system, sans-serif";
+  ctx.fillText("가문: " + state.family, pad + 28, pad + 140);
+  ctx.fillText("세대: " + state.generation + "대", pad + 28, pad + 190);
+
+  ctx.font = "24px system-ui, -apple-system, sans-serif";
+  wrapText(ctx, "가훈: \"" + state.motto + "\"", pad + 28, pad + 250, W - (pad + 60), 34);
+
+  // 성향 배지 느낌
+  ctx.fillStyle = "#0b0b0c";
+  roundRect(ctx, pad + 28, pad + 330, 260, 56, 16, true, false);
+  ctx.fillStyle = "#fbbf24";
+  ctx.font = "bold 22px system-ui, -apple-system, sans-serif";
+  ctx.fillText(s.type, pad + 46, pad + 366);
+
+  // 하단
+  ctx.fillStyle = "#a1a1aa";
+  ctx.font = "20px system-ui, -apple-system, sans-serif";
+  ctx.fillText("기록은 브라우저에 저장됩니다 · 공유용 자동 생성", pad + 28, H - pad - 30);
+
+  const dataUrl = canvas.toDataURL("image/png");
+
+  const out = document.getElementById("pngOut");
+  if (out) {
+    out.innerHTML =
+      "<div class='flex flex-col gap-2'>" +
+        "<a class='inline-flex items-center gap-2 text-sm border border-zinc-600 px-3 py-2 rounded hover:bg-zinc-800 w-fit' download='family_summary.png' href='" + dataUrl + "'>" +
+          "⬇️ PNG 다운로드" +
+        "</a>" +
+        "<img class='rounded-lg border border-zinc-700 max-w-full' alt='summary' src='" + dataUrl + "' />" +
+      "</div>";
+  } else {
+    window.open(dataUrl, "_blank");
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r, fill, stroke){
+  if (w < 2*r) r = w/2;
+  if (h < 2*r) r = h/2;
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+  if (fill) ctx.fill();
+  if (stroke) ctx.stroke();
+}
+
+function wrapText(ctx, text, x, y, maxWidth, lineHeight){
+  const words = text.split(" ");
+  let line = "";
+  for (let i=0;i<words.length;i++){
+    const test = line + words[i] + " ";
+    if (ctx.measureText(test).width > maxWidth && i > 0){
+      ctx.fillText(line, x, y);
+      line = words[i] + " ";
+      y += lineHeight;
+    } else {
+      line = test;
+    }
+  }
+  ctx.fillText(line, x, y);
+}
+
+/* =========================
+   대시보드 / 족보 / 공유
+========================= */
+function renderDashboard(){
+  let html =
+    "<div class='bg-zinc-800 border border-zinc-700 rounded-xl p-6'>" +
+      "<div class='flex items-start justify-between gap-3'>" +
+        "<div class='min-w-0'>" +
+          "<h2 class='text-lg font-bold text-amber-300 truncate'>🏠 " + escapeHtml(state.family) + "</h2>" +
+          "<p class='text-sm text-zinc-300 mt-1'>📖 \"" + escapeHtml(state.motto) + "\"</p>" +
+        "</div>" +
+        "<div class='text-right text-sm text-zinc-300'>" +
+          "<div>👤 " + escapeHtml(state.current) + "</div>" +
+          "<div class='text-zinc-400'>" + state.generation + "대 · " + state.age + "세</div>" +
+        "</div>" +
+      "</div>" +
+      "<div class='mt-4 flex flex-wrap gap-2 text-sm text-zinc-300'>" +
+        "<span class='px-2 py-1 rounded bg-zinc-900 border border-zinc-700'>⚠ 위험도 " + state.risk + "</span>" +
+        "<span class='px-2 py-1 rounded bg-zinc-900 border border-zinc-700'>📚 기록 " + state.genealogy.length + "건</span>" +
+      "</div>" +
+      "<div class='mt-5 flex gap-2'>" +
+        "<button id='btnNext' class='border border-zinc-600 px-4 py-2 rounded-lg hover:bg-zinc-700'>사건 진행</button>" +
+        "<button id='btnCopy' class='border border-zinc-600 px-4 py-2 rounded-lg hover:bg-zinc-700'>족보 복사</button>" +
+      "</div>" +
+    "</div>" +
+    "<div class='mt-6'>" +
+      "<h3 class='text-amber-300 font-bold mb-2'>족보</h3>" +
+      "<div class='bg-zinc-800 border border-zinc-700 rounded-xl p-4 text-sm text-zinc-200 leading-relaxed max-h-[360px] overflow-auto' id='genealogyBox'>" +
+        (state.genealogy.length ? renderGenealogyHtml() : "<span class='text-zinc-400'>아직 기록이 없다. 사건을 맞이하라.</span>") +
+      "</div>" +
+    "</div>";
+
+  app.innerHTML = html;
+
+  document.getElementById("btnNext").addEventListener("click", function(){ nextEvent(); });
+  document.getElementById("btnCopy").addEventListener("click", function(){ shareGenealogy(true); });
+}
+
+function renderGenealogyHtml(){
+  return state.genealogy.map(function(g){
+    return "<div class='mb-2'><span class='text-zinc-400'>" + g.generation + "대</span> " +
+      "<b class='text-zinc-100'>" + escapeHtml(g.name) + "</b> — " +
+      "<span class='text-zinc-200'>" + escapeHtml(g.choice) + "</span> " +
+      "<span class='text-zinc-500'>→</span> " +
+      "<span class='text-zinc-300'>" + escapeHtml(g.outcome) + "</span></div>";
+  }).join("");
+}
+
+function shareGenealogy(forceCopy){
+  if(!state) return alert("아직 가문이 없다!");
+
+  const lines = state.genealogy.map(function(g){
+    return g.generation + "대 " + g.name + ": " + g.choice + " → " + g.outcome;
+  }).join("\n");
+
+  const text = "📜 " + state.family + " 가문 족보\n" +
+               "가훈: " + state.motto + "\n\n" +
+               lines;
+
+  if (!forceCopy && navigator.share) {
+    navigator.share({ title:"가문 족보", text:text });
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text){
+  // clipboard는 파일:// 에서 막힐 수 있으니 안전하게 처리
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(function(){
+      alert("복사 완료! 붙여넣어서 공유해라 ㅋㅋ");
+    }).catch(function(){
+      prompt("복사해서 공유해라 ㅋㅋ", text);
+    });
+  } else {
+    prompt("복사해서 공유해라 ㅋㅋ", text);
+  }
+}
+
+/* =========================
+   유틸: XSS 방지
+========================= */
+function escapeHtml(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll("\"","&quot;")
+    .replaceAll("'","&#39;");
+}
+function escapeAttr(s){
+  // value="" 안에 들어갈 문자열용
+  return escapeHtml(s).replaceAll("\n"," ");
+}
+
+/* =========================
+   초기 실행
+========================= */
+if (!state) renderStart();
+else renderDashboard();
+</script>
+</body>
+</html>
