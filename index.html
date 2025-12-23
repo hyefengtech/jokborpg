@@ -32,6 +32,7 @@
     <div class="max-w-3xl mx-auto px-4 py-4 text-xs text-zinc-400 flex flex-col gap-1">
       <div>데이터는 브라우저(로컬스토리지)에만 저장됩니다.</div>
       <div class="text-zinc-500">Tip: 3대마다 요약 카드가 뜨고, PNG로 저장할 수 있어요.</div>
+      <div>© 2025 Worldplay All rights reserved.</div>
     </div>
   </footer>
 
@@ -281,7 +282,7 @@ const events = [
     {text:"공사 추진", outcome:"평판이 좋아졌다.", riskDelta:0},
     {text:"미룬다", outcome:"당장은 편하지만 불만이 남았다.", riskDelta:1}
   ]},
-  { text:"헌병이 밤마다 순찰을 강화해 달라 한다.", risk:1, choices:[
+  { text:"밤마다 순찰을 강화해 달라 한다.", risk:1, choices:[
     {text:"강화한다", outcome:"치안은 좋아졌으나 불편이 커졌다.", riskDelta:1},
     {text:"현 수준 유지", outcome:"무난했지만 불안은 남았다.", riskDelta:0}
   ]},
@@ -747,12 +748,12 @@ function fallbackCopy(text){
   // clipboard는 파일:// 에서 막힐 수 있으니 안전하게 처리
   if (navigator.clipboard && window.isSecureContext) {
     navigator.clipboard.writeText(text).then(function(){
-      alert("복사 완료! 붙여넣어서 공유해라 ㅋㅋ");
+      alert("복사 완료! 붙여넣어서 공유하시오! ㅋㅋ");
     }).catch(function(){
-      prompt("복사해서 공유해라 ㅋㅋ", text);
+      prompt("복사해서 공유하시오 ㅋㅋ", text);
     });
   } else {
-    prompt("복사해서 공유해라 ㅋㅋ", text);
+    prompt("복사해서 공유하시오 ㅋㅋ", text);
   }
 }
 
